@@ -1,0 +1,27 @@
+node_modules/
+.session-secret
+.env
+.env.*
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.tar.gz
+.DS_Store
+
+# Anciennes versions et sauvegardes
+*-avant-*.js
+*-sauvegarde.js
+index-v4-sauvegarde.js
+
+# Fichiers de sauvegarde
+*.bak
+*.backup
+
+# Anciennes pages HTML
+public/*-avant-*.html
+public/*-backup.html
+public/*-sauvegarde.html
+
+# Autres sauvegardes JavaScript
+index-sauvegarde*.js

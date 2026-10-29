@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATLASCOM — Messages privés</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#090c12;color:white;font-family:Arial,sans-serif}
+header{height:70px;background:#101622;border-bottom:1px solid #263044;display:flex;align-items:center;justify-content:space-between;padding:0 25px}
+.logo{font-size:24px;font-weight:900;letter-spacing:3px}
+.logo span{color:#438bff}
+a{color:#8db7ff;text-decoration:none}
+.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100dvh - 70px)}
+aside{background:#101622;border-right:1px solid #263044;padding:20px;overflow:auto}
+h3{font-size:12px;color:#788ba8;letter-spacing:2px}
+.person{padding:16px;border-radius:10px;cursor:pointer;margin-top:10px;background:#151e2d}
+.person:hover,.person.active{background:#203454}
+.preview{font-size:12px;color:#8b9ab3;margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat{display:flex;flex-direction:column;min-width:0}
+.chathead{padding:22px;border-bottom:1px solid #263044;font-weight:bold}
+#messages{flex:1;overflow:auto;padding:25px}
+.msg{background:#151e2d;padding:14px;border-radius:12px;margin-bottom:12px;max-width:80%;overflow-wrap:anywhere}
+.mine{background:#203b65;margin-left:auto}
+.author{font-size:12px;color:#65a2ff;margin-bottom:6px}
+form{display:flex;gap:10px;padding:20px;border-top:1px solid #263044}
+input{flex:1;min-width:0;background:#192334;color:white;border:1px solid #30415c;border-radius:9px;padding:14px}
+button{background:#377cf6;color:white;border:0;border-radius:9px;padding:14px;cursor:pointer}
+.empty{color:#8b9ab3;text-align:center;margin-top:40px}
+@media(max-width:650px){
+.layout{grid-template-columns:125px 1fr}
+aside{padding:10px}
+.person{padding:10px;font-size:12px}
+header{padding:0 12px}
+.logo{font-size:18px}
+form{padding:10px}
+}
+</style>
+</head>
+<body>
+
+<header>
+<div class="logo">ATLAS<span>COM</span></div>
+<a href="/">← Retour aux salons</a>
+</header>
+
+<div class="layout">
+<aside>
+<h3>CONVERSATIONS</h3>
+<div id="conversations"></div>
+</aside>
+
+<section class="chat">
+<div class="chathead" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+<span id="title">Messages privés</span>
+<div style="display:flex;gap:8px">
+<button type="button" id="blockUser" style="background:#8b2635;color:white;padding:8px;border:0;border-radius:6px">🚫 Bloquer</button>
+<button type="button" id="unblockUser" style="background:#246b50;color:white;padding:8px;border:0;border-radius:6px">🔓 Débloquer</button>
+<button type="button" id="reportUser" style="background:#314c70;color:white;padding:8px;border:0;border-radius:6px">🚩 Signaler</button>
+</div>
+</div>
+<div id="messages">
+<p class="empty">Sélectionne une conversation.</p>
+</div>
+<form id="form">
+<input id="message" maxlength="1000" placeholder="Écris ton message..." required>
+<button>Envoyer</button>
+</form>
+</section>
+</div>
+
+<script src="/socket.io/socket.io.js">
+</script>
+<script>
+let me="";
+let recipient="";
+let socket;
+let requestNumber=0;
+
+const box=document.getElementById("messages");
+const conversations=document.getElementById("conversations");
+
+function addMessage(author,text){
+const div=document.createElement("div");
+div.className="msg"+(author.toLowerCase()===me.toLowerCase()?" mine":"");
+const title=document.createElement("div");
+title.className="author";
+title.textContent=author;
+const body=document.createElement("div");
+body.textContent=text;
+div.append(title,body);
+box.appendChild(div);
+box.scrollTop=box.scrollHeight;
+}
+
+async function loadConversations(){
+const response=await fetch("/api/conversations");
+if(!response.ok)return;
+const list=await response.json();
+conversations.replaceChildren();
+list.forEach(item=>{
+const div=document.createElement("div");
+div.className="person"+(item.pseudo===recipient?" active":"");
+div.textContent=item.pseudo;
+const preview=document.createElement("div");
+preview.className="preview";
+preview.textContent=item.lastMessage||"";
+div.appendChild(preview);
+div.onclick=()=>openConversation(item.pseudo);
+conversations.appendChild(div);
+});
+}
+
+async function openConversation(name){
+recipient=name;
+document.getElementById("title").textContent="🔒 "+name;
+const currentRequest=++requestNumber;
+const response=await fetch("/api/messages/"+encodeURIComponent(name));
+if(currentRequest!==requestNumber)return;
+box.replaceChildren();
+if(!response.ok){
+box.textContent="Impossible d'ouvrir cette conversation.";
+return;
+}
+const list=await response.json();
+list.forEach(item=>addMessage(item.sender,item.message));
+loadConversations();
+}
+
+document.getElementById("form").onsubmit=e=>{
+e.preventDefault();
+if(!recipient)return alert("Sélectionne une conversation.");
+const input=document.getElementById("message");
+const message=input.value.trim();
+if(!message)return;
+if(!socket?.connected)return alert("Connexion interrompue.");
+socket.emit("privateMessage",{pseudo:recipient,message});
+input.value="";
+};
+
+async function init(){
+const response=await fetch("/api/me");
+if(!response.ok){
+location.href="/";
+return;
+}
+const user=await response.json();
+me=user.pseudo;
+
+socket=io();
+
+socket.on("connect", () => {
+  socket.emit("register");
+});
+
+socket.on("privateMessage",data=>{
+const other=data.from.toLowerCase()===me.toLowerCase()?data.to:data.from;
+if(recipient.toLowerCase()===other.toLowerCase()){
+addMessage(data.from,data.message);
+}
+loadConversations();
+});
+
+socket.on("privateError",error=>alert(error));
+
+await loadConversations();
+
+const name=new URLSearchParams(location.search).get("user");
+if(name&&name.toLowerCase()!==me.toLowerCase()){
+openConversation(name);
+}
+}
+
+init();
+async function moderation(url, data) {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Erreur");
+      return false;
+    }
+
+    return true;
+  } catch {
+    alert("Erreur de connexion");
+    return false;
+  }
+}
+
+document.getElementById("blockUser").onclick = async () => {
+  if (!recipient) return alert("Choisis une conversation.");
+
+  if (!confirm("Bloquer " + recipient + " ?")) return;
+
+  if (await moderation("/api/bloquer", {pseudo: recipient})) {
+    alert("Utilisateur bloqué.");
+    location.href = "/messages";
+  }
+};
+
+document.getElementById("reportUser").onclick = async () => {
+  if (!recipient) return alert("Choisis une conversation.");
+
+  const reason = prompt("Pourquoi signaler " + recipient + " ?");
+  if (reason === null) return;
+
+  if (await moderation("/api/signaler", {
+    pseudo: recipient,
+    reason: reason.trim()
+  })) {
+    alert("Signalement enregistré.");
+  }
+};
+
+
+
+document.getElementById("unblockUser").onclick = async () => {
+  if (!recipient) return alert("Choisis une conversation.");
+
+  if (!confirm("Débloquer " + recipient + " ?")) return;
+
+  if (await moderation("/api/debloquer", {pseudo: recipient})) {
+    alert("Utilisateur débloqué.");
+    location.reload();
+  }
+};
+
+</script>
+</body>
+</html>

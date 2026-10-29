@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATLASCOM — Administration</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#081525;color:white;font-family:Arial,sans-serif}
+header{background:#101f35;padding:22px 30px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+h1{margin:0;font-size:25px}
+h2{margin-top:0}
+a{color:white;text-decoration:none;background:#29486d;padding:11px 16px;border-radius:8px}
+main{max-width:1200px;margin:auto;padding:25px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}
+.card{background:#172a44;border-radius:12px;padding:22px;margin-bottom:20px}
+.number{font-size:34px;font-weight:bold;color:#83c8ff}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:13px;border-bottom:1px solid #344860}
+th{color:#9dc8ed}
+.tablewrap{overflow-x:auto}
+.empty{color:#aebed0}
+@media(max-width:650px){.stats{grid-template-columns:1fr}main{padding:12px}}
+</style>
+</head>
+<body>
+<header>
+<h1>ATLASCOM — Administration</h1>
+<a href="/">← Retour aux salons</a>
+</header>
+<main>
+<section class="stats">
+<div class="card"><h2>👥 Membres</h2><div class="number" id="countUsers">—</div></div>
+<div class="card"><h2>💬 Messages privés</h2><div class="number" id="countMessages">—</div></div>
+<div class="card"><h2>🚩 Signalements</h2><div class="number" id="countReports">—</div></div>
+</section>
+
+<section class="card">
+<h2>👥 Utilisateurs inscrits</h2>
+<div class="tablewrap">
+<table><thead><tr><th>ID</th><th>Pseudo</th></tr></thead>
+<tbody id="users"></tbody></table>
+</div>
+</section>
+
+<section class="card">
+<h2>🚩 Signalements reçus</h2>
+<div class="tablewrap">
+<table><thead><tr><th>ID</th><th>Signalé par</th><th>Utilisateur signalé</th><th>Motif</th><th>Date</th></tr></thead>
+<tbody id="reports"></tbody></table>
+</div>
+</section>
+
+<section class="card">
+<h2>🛡️ Historique des sanctions</h2>
+<div class="tablewrap">
+<table>
+<thead>
+<tr><th>Utilisateur</th><th>Motif</th><th>Début</th><th>Expiration</th><th>Statut</th></tr>
+</thead>
+<tbody id="sanctions"></tbody>
+</table>
+</div>
+</section>
+
+</main>
+
+<script>
+async function load(){
+  try{
+    const response=await fetch("/api/admin/data");
+    if(!response.ok)throw new Error("Accès refusé");
+    const data=await response.json();
+
+    document.getElementById("countUsers").textContent=data.stats.users;
+    document.getElementById("countMessages").textContent=data.stats.messages;
+    document.getElementById("countReports").textContent=data.stats.reports;
+
+    const users=document.getElementById("users");
+    users.replaceChildren();
+
+    for(const user of data.users){
+      const tr=document.createElement("tr");
+      for(const value of [user.id,user.pseudo]){
+        const td=document.createElement("td");
+        td.textContent=value;
+        tr.appendChild(td);
+      }
+      users.appendChild(tr);
+    }
+
+    const reports=document.getElementById("reports");
+    reports.replaceChildren();
+
+    for(const report of data.reports){
+      const tr=document.createElement("tr");
+      for(const value of [report.id,report.reporter,report.reported,report.reason,report.created_at]){
+        const td=document.createElement("td");
+        td.textContent=value??"";
+        tr.appendChild(td);
+      }
+      reports.appendChild(tr);
+    }
+
+
+    const sanctionsBox=document.getElementById("sanctions");
+    sanctionsBox.replaceChildren();
+
+    for(const sanction of (data.sanctions || [])){
+      const tr=document.createElement("tr");
+      const active=sanction.expires_at>Date.now();
+
+      const values=[
+        sanction.pseudo,
+        sanction.reason,
+        new Date(sanction.created_at).toLocaleString("fr-FR"),
+        new Date(sanction.expires_at).toLocaleString("fr-FR"),
+        active?"🔴 Active":"🟢 Expirée"
+      ];
+
+      for(const value of values){
+        const td=document.createElement("td");
+        td.textContent=value;
+        tr.appendChild(td);
+      }
+
+      sanctionsBox.appendChild(tr);
+    }
+
+    if(!data.reports.length){
+      const tr=document.createElement("tr");
+      const td=document.createElement("td");
+      td.colSpan=5;
+      td.textContent="Aucun signalement.";
+      tr.appendChild(td);
+      reports.appendChild(tr);
+    }
+  }catch(error){
+    alert("Impossible de charger l'administration : "+error.message);
+  }
+}
+load();
+</script>
+</body>
+</html>
