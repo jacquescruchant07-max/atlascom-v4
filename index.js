@@ -78,6 +78,11 @@ app.post("/api/connexion", authLimiter, (req, res) => {
 });
 
 
+
+app.get("/google9f762b3cb8e1a913.html", (req, res) => {
+  res.sendFile(require("path").join(__dirname, "public", "google9f762b3cb8e1a913.html"));
+});
+
 app.get("/messages", (req, res) => {
   if (!req.session.user) {
     return res.redirect("/");
