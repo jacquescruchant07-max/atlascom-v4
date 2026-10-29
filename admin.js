@@ -1,7 +1,9 @@
 module.exports = function(app, db) {
 
   function adminOnly(req, res, next) {
-    if (!req.session.user || Number(req.session.user.id) !== 1) {
+    if (!req.session.user || !process.env.ADMIN_USER_IDS
+        ?.split(",")
+        .includes(String(req.session.user.id))) {
       return res.status(403).send("Accès interdit");
     }
     next();
